@@ -1,6 +1,6 @@
-CREATE DATABASE IF NOT EXISTS proximity_chat
+CREATE DATABASE IF NOT EXISTS shasta_exchange
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE proximity_chat;
+USE shasta_exchange;
 
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
