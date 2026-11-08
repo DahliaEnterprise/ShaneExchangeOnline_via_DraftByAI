@@ -24,4 +24,12 @@ define('SMTP_PORT', 587);
 define('SMTP_USERNAME', 'shanebetz@shastaexchange.online');
 define('SMTP_PASSWORD', 'YOUR_NAMECHEAP_MAILBOX_PASSWORD');
 
+// PayPal payment settings
+// Never put the PayPal secret or webhook ID in a public directory.
+define('PAYPAL_MODE', 'live'); // 'live' or 'sandbox'
+define('PAYPAL_CLIENT_ID', 'CLIENT ID');
+define('PAYPAL_CLIENT_SECRET', 'Client SECRET');
+define('PAYPAL_WEBHOOK_ID', 'webhook id');
+define('PAYPAL_CURRENCY', 'USD');
+define('PAYPAL_PASS_PRICE', '2.00');
 ?>

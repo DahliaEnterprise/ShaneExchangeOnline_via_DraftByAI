@@ -3,7 +3,12 @@ declare(strict_types=1);
 require_once __DIR__ . '/auth/bootstrap.php';
 require_once __DIR__ . '/api/voicemail_config.php';
 require_login();
+
 $token = csrf_token();
+$passQuery = $pdo->prepare('SELECT paid_until FROM users WHERE id = ?');
+$passQuery->execute([(int)$_SESSION['user_id']]);
+$paidUntil = $passQuery->fetchColumn();
+$passActive = $paidUntil && strtotime((string)$paidUntil) > time();
 ?>
 <!doctype html>
 <html lang="en">
@@ -17,8 +22,15 @@ $token = csrf_token();
 <body>
 <header class="topbar">
   <a class="brand" href="/voicemail.php">Shasta Exchange</a>
-  <nav><span><?= htmlspecialchars((string)($_SESSION['email'] ?? 'Account'), ENT_QUOTES, 'UTF-8') ?></span>
-  <a href="/auth/logout.php">Log out</a></nav>
+  <nav>
+    <span><?= htmlspecialchars((string)($_SESSION['email'] ?? 'Account'), ENT_QUOTES, 'UTF-8') ?></span>
+    <?php if ($passActive): ?>
+      <span class="small">Pass active until <?= htmlspecialchars((string)$paidUntil, ENT_QUOTES, 'UTF-8') ?></span>
+    <?php else: ?>
+      <a href="/billing.php">Get 30-day pass — $2</a>
+    <?php endif; ?>
+    <a href="/auth/logout.php">Log out</a>
+  </nav>
 </header>
 <main class="layout">
   <section class="panel">
@@ -36,9 +48,9 @@ $token = csrf_token();
     <h2>Your voice inbox</h2>
     <p>Choose a conversation to listen to messages, or start a new one using another registered Shasta Exchange email address.</p>
     <p class="small">Recordings: up to 60 seconds and 2 MB per upload.</p>
+    <p><a href="/billing.php">View prepaid message pass</a></p>
   </aside>
 </main>
-
 <dialog id="newDialog">
   <form id="newConversationForm" method="dialog">
     <button type="button" class="dialog-close" id="closeDialog" aria-label="Close">×</button>
