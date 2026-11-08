@@ -1,257 +1,429 @@
 <?php
 declare(strict_types=1);
-
 require_once __DIR__ . '/bootstrap.php';
 
-$message = '';
+require_once '/var/www-private/shasta_exchange/vendor/autoload.php';
 
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+// Redirect logged-in users.
+if (!empty($_SESSION['user_id'])) {
+    header('Location: /voicemail.php');
+    exit;
+}
+
+$error = '';
+$success = '';
+
+/**
+ * Send account verification email.
+ */
+function send_app_email(
+    string $recipient,
+    string $subject,
+    string $html,
+    string $plainText = ''
+): bool {
+
+    $mail = new PHPMailer(true);
+
+    try {
+        $mail->isSMTP();
+        $mail->Host = SMTP_HOST;
+        $mail->SMTPAuth = true;
+        $mail->Username = SMTP_USERNAME;
+        $mail->Password = SMTP_PASSWORD;
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port = SMTP_PORT;
+
+        $mail->setFrom(SMTP_USERNAME, 'Shasta Exchange');
+        $mail->addAddress($recipient);
+
+        $mail->isHTML(true);
+        $mail->Subject = $subject;
+        $mail->Body = $html;
+        $mail->AltBody = $plainText ?: strip_tags($html);
+
+        $mail->send();
+
+        return true;
+
+    } catch (Exception $e) {
+        error_log('Email error: ' . $mail->ErrorInfo);
+        return false;
+    }
+}
+
+function send_verification_email(
+    string $email,
+    string $token
+): bool {
+
+    $url = rtrim(APP_BASE_URL, '/')
+         . '/auth/verify.php?token='
+         . urlencode($token);
+
+    $safeUrl = htmlspecialchars(
+        $url,
+        ENT_QUOTES,
+        'UTF-8'
+    );
+
+    $html = '
+        <h2>Welcome to Shasta Exchange!</h2>
+
+        <p>Thank you for creating an account.</p>
+
+        <p>Please verify your email address by clicking below:</p>
+
+        <p>
+            <a href="' . $safeUrl . '">
+                Verify Email Address
+            </a>
+        </p>
+
+        <p>This verification link expires in 24 hours.</p>
+
+        <p>Shasta Exchange</p>
+    ';
+
+    $plainText = "Welcome to Shasta Exchange!\n\n"
+               . "Verify your email address:\n"
+               . $url
+               . "\n\nThis link expires in 24 hours.";
+
+    return send_app_email(
+        $email,
+        'Verify your Shasta Exchange account',
+        $html,
+        $plainText
+    );
+}
+
+
+// Process registration.
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    $email = filter_var(
-        trim($_POST['email'] ?? ''),
-        FILTER_VALIDATE_EMAIL
+    $email = strtolower(
+        trim($_POST['email'] ?? '')
     );
 
     $password = $_POST['password'] ?? '';
     $confirm = $_POST['confirm_password'] ?? '';
 
-    if (!$email) {
-        $message = 'Enter a valid email address.';
 
-    } elseif (!is_string($password) || strlen($password) < 12) {
-        $message = 'Password must be at least 12 characters.';
+    // Validate email.
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 
-    } elseif (!is_string($confirm) || $password !== $confirm) {
-        $message = 'Passwords do not match.';
+        $error = 'Please enter a valid email address.';
 
-    } else {
-
-        // Check whether this email already exists
-        $stmt = $pdo->prepare(
-            'SELECT id, verified FROM users
-             WHERE email = ? LIMIT 1'
-        );
-
-        $stmt->execute([$email]);
-        $existingUser = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($existingUser && (bool)$existingUser['verified']) {
-
-            $message = 'This email is already registered. Please log in.';
-
-        } else {
-
-            // Generate a new verification token
-            $token = bin2hex(random_bytes(32));
-
-            $tokenHash = hash('sha256', $token);
-
-            $expires = (new DateTimeImmutable('+24 hours'))
-                ->format('Y-m-d H:i:s');
-
-            if ($existingUser) {
-
-                // Existing account: resend verification
-                // and invalidate the previous token
-
-                $update = $pdo->prepare(
-                    'UPDATE users
-                     SET verification_token_hash = ?,
-                         verification_expires = ?
-                     WHERE id = ? AND verified = 0'
-                );
-
-                $update->execute([
-                    $tokenHash,
-                    $expires,
-                    $existingUser['id']
-                ]);
-
-            } else {
-
-                // New account
-                $passwordHash = password_hash(
-                    $password,
-                    PASSWORD_ARGON2ID
-                );
-
-                $insert = $pdo->prepare(
-                    'INSERT INTO users
-                    (
-                        email,
-                        password_hash,
-                        verified,
-                        verification_token_hash,
-                        verification_expires
-                    )
-                    VALUES (?, ?, 0, ?, ?)'
-                );
-
-                $insert->execute([
-                    $email,
-                    $passwordHash,
-                    $tokenHash,
-                    $expires
-                ]);
-            }
-
-            // Build verification link
-            $link = rtrim(APP_BASE_URL, '/')
-                . '/auth/verify.php?token='
-                . urlencode($token);
-
-            $subject = 'Verify your Shasta Exchange account';
-
-            $body = "Hello,
-
-Use this link to verify your email address.
-It expires in 24 hours:
-
-$link
-
-If you did not request this, ignore this email.";
-
-            $headers = "From: " . MAIL_FROM . "\r\n";
-            $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
-
-            // Send verification email
-            if (mail($email, $subject, $body, $headers)) {
-
-                $message = 'A verification email has been sent. Check your inbox.';
-
-            } else {
-
-                error_log(
-                    'Verification email could not be sent for ' . $email
-                );
-
-                $message = 'Your account is saved, but the verification email could not be sent. Please try registering again later.';
-            }
-        }
     }
+
+    // Validate password length.
+    elseif (strlen($password) < 8) {
+
+        $error = 'Password must be at least 8 characters.';
+
+    }
+
+    // Verify passwords match.
+    elseif ($password !== $confirm) {
+
+        $error = 'Passwords do not match.';
+
+    }
+
+    else {
+
+        try {
+
+            // Check whether the email already exists.
+            $stmt = $pdo->prepare(
+                'SELECT id, verified
+                 FROM users
+                 WHERE email = ?
+                 LIMIT 1'
+            );
+
+            $stmt->execute([$email]);
+
+            $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+
+
+            if ($existing && (int)$existing['verified'] === 1) {
+
+                $error = 'This email address is already registered.';
+
+            }
+
+            else {
+
+                // Generate a secure verification token.
+                $token = bin2hex(random_bytes(32));
+
+                // Store only the token hash.
+                $tokenHash = hash('sha256', $token);
+
+                // Verification expires after 24 hours.
+                $expires = date(
+                    'Y-m-d H:i:s',
+                    time() + 86400
+                );
+
+
+                if ($existing) {
+
+                    // Existing unverified account.
+                    // Update its verification token.
+
+                    $stmt = $pdo->prepare(
+                        'UPDATE users
+                         SET verification_token_hash = ?,
+                             verification_expires = ?
+                         WHERE id = ?'
+                    );
+
+                    $stmt->execute([
+                        $tokenHash,
+                        $expires,
+                        $existing['id']
+                    ]);
+
+                }
+
+                else {
+
+                    // Create a new account.
+                    $passwordHash = password_hash(
+                        $password,
+                        PASSWORD_DEFAULT
+                    );
+
+                    $stmt = $pdo->prepare(
+                        'INSERT INTO users
+                        (
+                            email,
+                            password_hash,
+                            verified,
+                            verification_token_hash,
+                            verification_expires
+                        )
+                        VALUES (?, ?, 0, ?, ?)'
+                    );
+
+                    $stmt->execute([
+                        $email,
+                        $passwordHash,
+                        $tokenHash,
+                        $expires
+                    ]);
+
+                }
+
+
+                // Send verification email.
+                if (send_verification_email($email, $token)) {
+
+                    $success = 'Your account has been created! '
+                             . 'Please check your email to verify your account.';
+
+                }
+
+                else {
+
+                    $error = 'Your account was created, but the '
+                           . 'verification email could not be sent. '
+                           . 'Please try again later.';
+
+                }
+
+            }
+
+        }
+
+        catch (PDOException $e) {
+
+            error_log(
+                'Registration database error: '
+                . $e->getMessage()
+            );
+
+            $error = 'Registration failed. Please try again.';
+
+        }
+
+        catch (Throwable $e) {
+
+            error_log(
+                'Registration error: '
+                . $e->getMessage()
+            );
+
+            $error = 'An unexpected error occurred. Please try again.';
+
+        }
+
+    }
+
 }
+
 ?>
 
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
-<meta charset="utf-8">
 
-<meta name="viewport"
-      content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8">
 
-<title>Sign up - Shasta Exchange</title>
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1">
 
-<style>
+    <title>Register - Shasta Exchange</title>
 
-body {
-    font-family: Arial, sans-serif;
-    background: #121826;
-    color: white;
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet">
 
-    display: grid;
-    place-items: center;
-
-    min-height: 100vh;
-    margin: 0;
-}
-
-.card {
-    background: #202b3d;
-    padding: 28px;
-    border-radius: 14px;
-
-    width: min(390px, 88vw);
-}
-
-input, button {
-    box-sizing: border-box;
-    width: 100%;
-
-    padding: 12px;
-    margin: 8px 0;
-
-    border-radius: 7px;
-    border: 0;
-}
-
-button {
-    background: #477de0;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-a {
-    color: #9fc2ff;
-}
-
-.msg {
-    color: #ffd28a;
-}
-
-</style>
 </head>
 
-<body>
+<body class="bg-light">
 
-<main class="card">
+<div class="container py-5">
 
-    <h1>Create account</h1>
+    <div class="row justify-content-center">
 
-    <p class="msg">
-        <?= htmlspecialchars(
-            $message,
-            ENT_QUOTES,
-            'UTF-8'
-        ) ?>
-    </p>
+        <div class="col-md-6 col-lg-5">
 
-    <form method="post">
+            <div class="card shadow-sm">
 
-        <label>Email</label>
+                <div class="card-body p-4">
 
-        <input
-            type="email"
-            name="email"
-            required
-            autocomplete="email"
-        >
+                    <h2 class="text-center mb-2">
+                        Shasta Exchange
+                    </h2>
 
-        <label>Password (12+ characters)</label>
+                    <p class="text-center text-muted mb-4">
+                        Create your account
+                    </p>
 
-        <input
-            type="password"
-            name="password"
-            required
-            minlength="12"
-            autocomplete="new-password"
-        >
 
-        <label>Confirm password</label>
+                    <?php if ($error): ?>
 
-        <input
-            type="password"
-            name="confirm_password"
-            required
-            minlength="12"
-            autocomplete="new-password"
-        >
+                        <div class="alert alert-danger">
 
-        <button type="submit">
-            Sign up
-        </button>
+                            <?= htmlspecialchars(
+                                $error,
+                                ENT_QUOTES,
+                                'UTF-8'
+                            ) ?>
 
-    </form>
+                        </div>
 
-    <p>
-        <a href="/auth/login.php">
-            Already registered? Log in
-        </a>
-    </p>
+                    <?php endif; ?>
 
-</main>
+
+                    <?php if ($success): ?>
+
+                        <div class="alert alert-success">
+
+                            <?= htmlspecialchars(
+                                $success,
+                                ENT_QUOTES,
+                                'UTF-8'
+                            ) ?>
+
+                        </div>
+
+                    <?php endif; ?>
+
+
+                    <form method="POST">
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Email Address
+                            </label>
+
+                            <input
+                                type="email"
+                                name="email"
+                                class="form-control"
+                                maxlength="254"
+                                autocomplete="email"
+                                required>
+
+                        </div>
+
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Password
+                            </label>
+
+                            <input
+                                type="password"
+                                name="password"
+                                class="form-control"
+                                minlength="8"
+                                maxlength="72"
+                                autocomplete="new-password"
+                                required>
+
+                        </div>
+
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Confirm Password
+                            </label>
+
+                            <input
+                                type="password"
+                                name="confirm_password"
+                                class="form-control"
+                                minlength="8"
+                                maxlength="72"
+                                autocomplete="new-password"
+                                required>
+
+                        </div>
+
+
+                        <button
+                            type="submit"
+                            class="btn btn-primary w-100">
+
+                            Create Account
+
+                        </button>
+
+                    </form>
+
+
+                    <p class="text-center mt-4 mb-0">
+
+                        Already have an account?
+
+                        <a href="/auth/login.php">
+                            Sign in
+                        </a>
+
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
 
 </body>
 </html>

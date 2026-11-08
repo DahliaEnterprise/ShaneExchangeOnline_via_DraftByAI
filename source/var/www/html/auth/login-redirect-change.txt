@@ -1,0 +1,6 @@
+In source/var/www/html/auth/login.php, change both occurrences of:
+    /view_conversation.php
+to:
+    /voicemail.php
+
+This is intentionally provided as a small manual edit so the existing login implementation is not replaced wholesale.
