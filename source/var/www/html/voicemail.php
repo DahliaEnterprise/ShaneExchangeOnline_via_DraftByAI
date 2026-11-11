@@ -32,6 +32,7 @@ $passActive = $paidUntil && strtotime((string)$paidUntil) > time();
     <a href="/auth/logout.php">Log out</a>
   </nav>
 </header>
+
 <main class="layout">
   <section class="panel">
     <div class="section-heading">
@@ -46,21 +47,33 @@ $passActive = $paidUntil && strtotime((string)$paidUntil) > time();
   <aside class="help-panel">
     <div class="circle-icon">♪</div>
     <h2>Your voice inbox</h2>
-    <p>Choose a conversation to listen to messages, or start a new one using another registered Shasta Exchange email address.</p>
+    <p>Generate a six-digit invitation code and share it with another Shasta Exchange member, or redeem a code they shared with you.</p>
+    <p class="small">Each code expires after seven days and can only be used once.</p>
     <p class="small">Recordings: up to 60 seconds and 2 MB per upload.</p>
     <p><a href="/billing.php">View prepaid message pass</a></p>
   </aside>
 </main>
+
 <dialog id="newDialog">
   <form id="newConversationForm" method="dialog">
     <button type="button" class="dialog-close" id="closeDialog" aria-label="Close">×</button>
-    <p class="eyebrow">NEW MESSAGE THREAD</p><h2>Start a conversation</h2>
-    <label for="recipientEmail">Recipient's registered email</label>
-    <input id="recipientEmail" type="email" autocomplete="email" required maxlength="254" placeholder="person@example.com">
-    <p id="dialogError" class="error"></p>
-    <div class="dialog-actions"><button type="button" class="secondary" id="cancelDialog">Cancel</button><button class="primary" type="submit">Open conversation</button></div>
+    <p class="eyebrow">PRIVATE INVITATION</p>
+    <h2>Start a conversation</h2>
+    <p class="muted">Generate a code to invite someone, or enter a code you received.</p>
+    <button type="button" class="primary" id="generateCode">Generate my six-digit code</button>
+    <p id="generatedCode" class="generated-code" hidden></p>
+    <label for="invitationCode">Six-digit invitation code</label>
+    <input id="invitationCode" type="text" inputmode="numeric"
+           autocomplete="one-time-code" pattern="[0-9]{6}"
+           maxlength="6" minlength="6" required placeholder="123456">
+    <p id="dialogError" class="error" role="alert"></p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" id="cancelDialog">Cancel</button>
+      <button class="primary" type="submit">Redeem code</button>
+    </div>
   </form>
 </dialog>
+
 <script src="/assets/js/voicemail.js" defer></script>
 </body>
 </html>

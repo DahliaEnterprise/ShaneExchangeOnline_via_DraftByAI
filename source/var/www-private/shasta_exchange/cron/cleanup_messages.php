@@ -2,9 +2,8 @@
 declare(strict_types=1);
 
 /*
- * CLI only. Preserve the low-disk trigger.
- * Active paid senders are protected; free/expired senders' messages older
- * than seven days are deleted once cleanup is triggered.
+ * CLI only. Expired invitation codes are removed on every run.
+ * The existing low-disk audio-retention behavior is preserved.
  */
 require_once '/var/www/html/auth/bootstrap.php';
 require_once '/var/www/html/api/voicemail_config.php';
@@ -16,10 +15,12 @@ if (PHP_SAPI !== 'cli') {
     http_response_code(404);
     exit;
 }
-if (RETENTION_DAYS < 1 || RETENTION_DAYS > 7) {
-    fwrite(STDERR, "Invalid retention period\n");
-    exit(1);
-}
+
+// Always delete expired invitations, even when disk space is plentiful.
+$pdo->exec(
+    'DELETE FROM conversation_invite_codes
+     WHERE expires_at <= UTC_TIMESTAMP()'
+);
 
 $free = disk_free_space(MESSAGE_STORAGE_DIR);
 if ($free === false || $free >= MIN_FREE_BYTES) {
