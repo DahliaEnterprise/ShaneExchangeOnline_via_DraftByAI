@@ -86,3 +86,47 @@ CREATE TABLE IF NOT EXISTS conversation_invite_codes (
     CONSTRAINT fk_invite_creator FOREIGN KEY (creator_user_id)
         REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+CREATE TABLE IF NOT EXISTS radio_presence (
+  user_id BIGINT UNSIGNED NOT NULL,
+  latitude DECIMAL(10,7) NOT NULL,
+  longitude DECIMAL(10,7) NOT NULL,
+  accuracy_m DECIMAL(8,2) NOT NULL,
+  inside_county TINYINT(1) NOT NULL DEFAULT 0,
+  transmitting_since DATETIME(6) NULL,
+  last_seen DATETIME NOT NULL,
+  PRIMARY KEY (user_id),
+  KEY idx_radio_presence_last_seen (last_seen),
+  KEY idx_radio_presence_transmitting (transmitting_since),
+  CONSTRAINT fk_radio_presence_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS radio_signals (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  from_user_id BIGINT UNSIGNED NOT NULL,
+  to_user_id BIGINT UNSIGNED NOT NULL,
+  signal_type ENUM('offer','answer','ice','hangup') NOT NULL,
+  payload MEDIUMTEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_radio_signals_recipient (to_user_id,id),
+  KEY idx_radio_signals_created (created_at),
+  CONSTRAINT fk_radio_signal_from FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_radio_signal_to FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS radio_recordings (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  stored_name VARCHAR(100) NOT NULL,
+  mime_type VARCHAR(80) NOT NULL,
+  byte_size INT UNSIGNED NOT NULL,
+  duration_seconds DECIMAL(8,2) NOT NULL,
+  started_at DATETIME NOT NULL,
+  ended_at DATETIME NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_radio_recording_name (stored_name),
+  KEY idx_radio_recording_expiry (ended_at),
+  CONSTRAINT fk_radio_recording_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -24,19 +24,15 @@ $token = csrf_token();
 <meta name="csrf-token" content="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
 <title>Conversation — Shasta Exchange</title><link rel="stylesheet" href="/assets/css/voicemail.css">
 </head><body>
-<header class="topbar"><a class="brand" href="/voicemail.php">← Shasta Exchange</a><a href="/auth/logout.php">Log out</a></header>
-<main class="chat-layout">
-  <section class="panel chat-panel">
-    <div class="chat-heading"><div><p class="eyebrow">VOICE CONVERSATION</p><h1><?= htmlspecialchars($otherEmail, ENT_QUOTES, 'UTF-8') ?></h1></div><span id="queueCount" class="count">0 new</span></div>
-    <div id="messageList" class="message-list"><p class="muted">Loading messages…</p></div>
-    <div class="recorder">
-      <div class="record-row"><div><strong>Record a voice message</strong><p class="small">Maximum 60 seconds · Maximum 2 MB · Ogg Opus</p></div><span id="recordTimer" class="timer">00:00 / 01:00</span></div>
-      <div class="meter"><div id="recordProgress"></div></div>
-      <div class="record-controls"><button id="recordButton" class="record-button">● Start recording</button><button id="sendButton" class="primary" disabled>Send message</button></div>
-      <p id="recordStatus" class="notice" role="status"></p>
-    </div>
-  </section>
-</main>
+<header class="topbar"><a class="brand" href="/voicemail.php">← Shasta Exchange</a><nav><a href="/voicemail.php">Inbox</a><a href="/radio.php">Voice Radio</a><a href="/auth/logout.php">Log out</a></nav></header>
+<main class="chat-layout"><section class="panel chat-panel">
+<div class="chat-heading"><div><p class="eyebrow">VOICE CONVERSATION</p><h1><?= htmlspecialchars($otherEmail, ENT_QUOTES, 'UTF-8') ?></h1></div><span id="queueCount" class="count">0 new</span></div>
+<div id="messageList" class="message-list"><p class="muted">Loading messages…</p></div>
+<div class="recorder"><div class="record-row"><div><strong>Record a voice message</strong><p class="small">Maximum 60 seconds · Maximum 2 MB · Ogg Opus</p></div><span id="recordTimer" class="timer">00:00 / 01:00</span></div>
+<div class="meter"><div id="recordProgress"></div></div>
+<div class="record-controls"><button id="recordButton" class="record-button">● Start recording</button><button id="sendButton" class="primary" disabled>Send message</button></div>
+<p id="recordStatus" class="notice" role="status"></p></div>
+</section></main>
 <script>
 window.SHASTA_CONVERSATION = <?= json_encode(['id'=>$id ?: null, 'to'=>$id ? null : $otherEmail, 'userId'=>(int)$_SESSION['user_id']], JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
 </script>
