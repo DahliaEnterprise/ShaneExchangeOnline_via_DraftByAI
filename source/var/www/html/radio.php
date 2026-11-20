@@ -15,6 +15,7 @@ $email = (string)($_SESSION['email'] ?? 'Member');
 <meta name="csrf-token" content="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
 <title>Shasta County Voice Radio — Shasta Exchange</title>
 <link rel="stylesheet" href="/assets/css/radio.css">
+<link rel="stylesheet" href="/assets/css/radio-player.css">
 </head>
 <body>
 <header class="radio-topbar">
@@ -26,19 +27,16 @@ $email = (string)($_SESSION['email'] ?? 'Member');
     <div><p class="eyebrow">COMMUNITY CHANNEL</p><h1>Shasta County Radio</h1><p class="subheading">Listen live or replay recent transmissions.</p></div>
     <span id="connectionBadge" class="status-badge status-wait">CONNECTING</span>
   </section>
-
   <section class="transmit-card">
     <div class="card-topline"><div><p class="eyebrow">YOUR TRANSMITTER</p><h2 id="transmitStatus">Standby</h2></div><span id="gpsBadge" class="status-badge status-wait">LOCATION CHECK</span></div>
     <button id="transmitButton" class="transmit-button" type="button" disabled aria-pressed="false"><span class="mic-icon">🎙</span><strong id="transmitButtonText">CHECKING LOCATION</strong></button>
     <p id="locationMessage" class="help-text">Allow location access to verify that you are inside Shasta County before transmitting.</p>
     <p id="radioNotice" class="notice" role="status"></p>
   </section>
-
   <section class="stats-grid">
     <div class="stat-card"><span>ACTIVE TRANSMITTERS</span><strong id="transmitterCount">0</strong></div>
     <div class="stat-card"><span>LISTENERS ONLINE</span><strong id="listenerCount">0</strong></div>
   </section>
-
   <section class="content-grid">
     <section class="panel">
       <div class="panel-heading"><div><p class="eyebrow">LIVE CHANNEL</p><h2>Channel activity</h2></div><span class="live-dot">● LIVE</span></div>
@@ -47,13 +45,12 @@ $email = (string)($_SESSION['email'] ?? 'Member');
       <div class="audio-row"><span>Live audio</span><button id="muteButton" class="secondary-button" type="button">Mute audio</button></div>
       <div id="remoteAudio" class="remote-audio" aria-hidden="true"></div>
     </section>
-
     <section class="panel archive-panel">
       <div class="panel-heading"><div><p class="eyebrow">RECENT TRANSMISSIONS</p><h2>30-minute archive</h2></div><span class="archive-count" id="archiveCount">0 files</span></div>
-      <p class="help-text">Each completed audible turn is saved as a separate recording. Files expire 30 minutes after the transmission ends.</p>
+      <p class="help-text">New completed recordings are detected automatically, queued in this browser, and played one after another. Files expire 30 minutes after the transmission ends.</p>
       <div id="archiveList" class="archive-list"><p class="empty-state">Loading recordings…</p></div>
       <audio id="archivePlayer" controls preload="none"></audio>
-      <p id="archiveStatus" class="help-text" aria-live="polite">Select a recording to play it.</p>
+      <p id="archiveStatus" class="help-text" aria-live="polite">Waiting for new recordings.</p>
     </section>
   </section>
   <footer class="radio-footer">SHASTA EXCHANGE · MEMBERS ONLY · TRANSMIT ACCESS REQUIRES SHASTA COUNTY LOCATION VERIFICATION</footer>
@@ -66,5 +63,6 @@ window.SHASTA_RADIO = <?= json_encode([
 ], JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
 </script>
 <script src="/assets/js/radio.js" defer></script>
+<script src="/assets/js/radio-player.js" defer></script>
 </body>
 </html>

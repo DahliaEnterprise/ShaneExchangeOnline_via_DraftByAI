@@ -130,3 +130,36 @@ CREATE TABLE IF NOT EXISTS radio_recordings (
   KEY idx_radio_recording_expiry (ended_at),
   CONSTRAINT fk_radio_recording_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id BIGINT UNSIGNED NOT NULL,
+    endpoint TEXT NOT NULL,
+    endpoint_hash CHAR(64) NOT NULL,
+    p256dh VARCHAR(255) NOT NULL,
+    auth VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_push_endpoint_hash (endpoint_hash),
+    KEY idx_push_subscriptions_user (user_id),
+    CONSTRAINT fk_push_subscription_user FOREIGN KEY (user_id)
+        REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One pending notification per user, across all conversations.
+CREATE TABLE IF NOT EXISTS push_notification_state (
+    user_id BIGINT UNSIGNED NOT NULL,
+    pending_message_id BIGINT UNSIGNED NULL,
+    pending_conversation_id BIGINT UNSIGNED NULL,
+    pending_since DATETIME NULL,
+    PRIMARY KEY (user_id),
+    KEY idx_push_pending_message (pending_message_id),
+    CONSTRAINT fk_push_state_user FOREIGN KEY (user_id)
+        REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_push_state_message FOREIGN KEY (pending_message_id)
+        REFERENCES messages(id) ON DELETE SET NULL,
+    CONSTRAINT fk_push_state_conversation FOREIGN KEY (pending_conversation_id)
+        REFERENCES conversations(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -6,7 +6,8 @@ const state = {
   stream: null, transmitting: false, inside: false, gps: null,
   peers: new Map(), activeId: null, muted: false, lastPoll: null,
   recorder: null, chunks: [], recordingStarted: 0, recordingTimer: null,
-  archivePlayerId: null, stopped: false
+  archivePlayerId: null, stopped: false, archiveInitialized: false,
+  archiveSeenIds: new Set()
 };
 const api = async (action, data = {}, method = 'POST') => {
   const body = new FormData();
@@ -109,13 +110,10 @@ function peerFor(id) {
     iceServers: [
       {urls:'stun:stun.l.google.com:19302'},
       {urls:'stun:stun1.l.google.com:19302'}
-      // Add your TURN service credentials here for reliable connections across restrictive NATs.
     ]
   });
   const entry = {pc, audio:null, makingOffer:false};
   state.peers.set(id, entry);
-  // Negotiate a bidirectional audio transceiver even when this member is only listening.
-  // The sender track can be attached later without a second offer/answer negotiation.
   const audioTransceiver = pc.addTransceiver('audio', {direction:'sendrecv'});
   entry.audioTransceiver = audioTransceiver;
   if (state.stream) audioTransceiver.sender.replaceTrack(state.stream.getAudioTracks()[0] || null).catch(()=>{});
@@ -138,7 +136,6 @@ function peerFor(id) {
   pc.onconnectionstatechange = () => {
     if (['failed','closed'].includes(pc.connectionState)) removePeer(id);
   };
-  // The lower user ID initiates the offer, preventing offer glare.
   if (Number(cfg.userId) < id) makeOffer(id, entry);
   return entry;
 }
@@ -267,28 +264,50 @@ async function poll() {
 async function loadArchive() {
   try {
     const result = await api('archive');
+    const recordings = Array.isArray(result.recordings) ? result.recordings : [];
+    const currentIds = new Set(recordings.map(rec => String(rec.id)));
+    let newlyReady = [];
+    if (!state.archiveInitialized) {
+      currentIds.forEach(id => state.archiveSeenIds.add(id));
+      state.archiveInitialized = true;
+    } else {
+      newlyReady = recordings.filter(rec => !state.archiveSeenIds.has(String(rec.id)));
+      currentIds.forEach(id => state.archiveSeenIds.add(id));
+    }
+    // Forget IDs no longer in the server's 30-minute retention window.
+    for (const id of state.archiveSeenIds) if (!currentIds.has(id)) state.archiveSeenIds.delete(id);
+
     const list = $('archiveList');
     list.replaceChildren();
-    $('archiveCount').textContent=`${result.recordings.length} files`;
-    if (!result.recordings.length) {
+    $('archiveCount').textContent=`${recordings.length} files`;
+    if (!recordings.length) {
       const empty=document.createElement('p'); empty.className='empty-state'; empty.textContent='No completed broadcasts in the last 30 minutes.';
-      list.append(empty); return;
-    }
-    result.recordings.forEach(rec=>{
-      const button=document.createElement('button'); button.type='button'; button.className='archive-file';
-      const icon=document.createElement('span'); icon.className='file-icon'; icon.textContent='♫';
-      const details=document.createElement('span'); details.className='file-details';
-      const title=document.createElement('strong'); title.textContent=`Broadcast_${String(rec.id).padStart(5,'0')}.webm`;
-      const sub=document.createElement('small'); sub.textContent=`${rec.email} · ${new Date(rec.ended_at.replace(' ','T')+'Z').toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}`;
-      const duration=document.createElement('span'); duration.className='file-duration'; duration.textContent=`${Math.floor(rec.duration_seconds/60)}:${String(Math.floor(rec.duration_seconds%60)).padStart(2,'0')}`;
-      details.append(title,sub); button.append(icon,details,duration);
-      button.addEventListener('click',()=>{
-        $('archivePlayer').src=`${cfg.api}?action=audio&id=${encodeURIComponent(rec.id)}`;
-        $('archivePlayer').play().catch(()=>{});
-        $('archiveStatus').textContent=`Playing recording from ${rec.email}.`;
+      list.append(empty);
+    } else {
+      recordings.forEach(rec=>{
+        const button=document.createElement('button'); button.type='button'; button.className='archive-file';
+        button.dataset.recordingId=String(rec.id);
+        const icon=document.createElement('span'); icon.className='file-icon'; icon.textContent='♫';
+        const details=document.createElement('span'); details.className='file-details';
+        const title=document.createElement('strong'); title.textContent=`Broadcast_${String(rec.id).padStart(5,'0')}.webm`;
+        const sub=document.createElement('small'); sub.textContent=`${rec.email} · ${new Date(rec.ended_at.replace(' ','T')+'Z').toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}`;
+        const duration=document.createElement('span'); duration.className='file-duration'; duration.textContent=`${Math.floor(rec.duration_seconds/60)}:${String(Math.floor(rec.duration_seconds%60)).padStart(2,'0')}`;
+        details.append(title,sub); button.append(icon,details,duration);
+        button.addEventListener('click',()=>{
+          window.dispatchEvent(new CustomEvent('shasta:archive-select',{detail:{
+            id:String(rec.id),
+            url:`${cfg.api}?action=audio&id=${encodeURIComponent(rec.id)}`,
+            title:title.textContent,
+            email:rec.email
+          }}));
+          $('archiveStatus').textContent=`Selected recording from ${rec.email}.`;
+        });
+        list.append(button);
       });
-      list.append(button);
-    });
+    }
+    window.dispatchEvent(new CustomEvent('shasta:archive-update',{detail:{
+      recordings, newlyReady, initialized:state.archiveInitialized
+    }}));
   } catch (e) { $('archiveStatus').textContent=e.message; }
 }
 $('transmitButton').addEventListener('click',()=>state.transmitting?stopTransmit():startTransmit());
